@@ -7,3 +7,7 @@ scikit-learn
 statsmodels
 transformers
 joblib
+torch
+feedparser
+requests
+beautifulsoup4

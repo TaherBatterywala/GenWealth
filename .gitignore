@@ -208,3 +208,11 @@ __marimo__/
 
 # Local virtual environment
 gwvenv/
+
+# Ignore the News Data folder (Too big)
+notebooks/News Data/
+
+# Ignore large raw CSVs anywhere
+*.csv
+
+
