@@ -1,0 +1,9 @@
+jupyter
+pandas
+yfinance
+matplotlib
+seaborn
+scikit-learn
+statsmodels
+transformers
+joblib
