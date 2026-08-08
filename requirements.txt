@@ -11,3 +11,7 @@ torch
 feedparser
 requests
 beautifulsoup4
+stable-baselines3[extra]
+gymnasium
+shimmy>=0.2.0
+scipy

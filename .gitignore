@@ -214,5 +214,5 @@ notebooks/News Data/
 
 # Ignore large raw CSVs anywhere
 *.csv
-
-
+!data/enriched_rl_data.csv
+p3
