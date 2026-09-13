@@ -1,17 +1,33 @@
+# ============================================================
+# GenWealth — Project Dependencies
+# ============================================================
+
+# --- Phase 1: Quant Engine ----------------------------------
 jupyter
-pandas
-yfinance
+pandas>=2.0
+yfinance>=0.2
 matplotlib
 seaborn
-scikit-learn
+scikit-learn>=1.4
 statsmodels
-transformers
+transformers>=4.40        # FinBERT sentiment model
 joblib
-torch
+torch>=2.1
 feedparser
 requests
 beautifulsoup4
-stable-baselines3[extra]
-gymnasium
-shimmy>=0.2.0
 scipy
+
+# --- Phase 2: RL Planner Engine -----------------------------
+stable-baselines3[extra]>=2.3
+gymnasium>=0.29
+shimmy>=0.2.0
+
+# --- Phase 3: Advisor Engine (Hybrid RAG + Multi-LLM) -------
+pymongo[srv]>=4.6          # MongoDB Atlas driver
+sentence-transformers>=2.7 # Local embeddings (all-MiniLM-L6-v2)
+python-dotenv>=1.0         # .env loading
+ddgs>=9.0                  # DuckDuckGo Search (keyless news)
+numpy>=1.26
+google-generativeai>=0.7   # Gemini LLM client
+groq>=0.9                  # Groq LLM client

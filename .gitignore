@@ -216,3 +216,7 @@ notebooks/News Data/
 *.csv
 !data/enriched_rl_data.csv
 p3
+
+# Internal-use only — never push to remote
+reports/
+Markdown Files/
