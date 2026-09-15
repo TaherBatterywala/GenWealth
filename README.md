@@ -27,7 +27,7 @@
 7. [Installation & Setup](#-installation--setup)
 8. [API Endpoints Reference](#-api-endpoints-reference)
 9. [Stress Test Validation](#-stress-test-validation)
-10. [License & Disclaimer](#-license--disclaimer)
+10. [Disclaimer](#-disclaimer)
 
 ---
 
@@ -693,10 +693,7 @@ The GenWealth frontend automatically supports cross-origin remote backends out o
 
 ---
 
-## 📜 License & Disclaimer
-
-### License
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+## 📜 Disclaimer
 
 ### Regulatory Disclaimer
 > ⚠️ **IMPORTANT REGULATORY NOTICE**: GenWealth AI is an open-source academic research and software demonstration project. All algorithmic outputs, signals, model predictions, asset allocations, paper trading metrics, and chat conversations are simulated and hypothetical. 
