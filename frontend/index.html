@@ -21,7 +21,7 @@
   <!-- Marked (Markdown renderer for report output) -->
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=2.6" />
+  <link rel="stylesheet" href="styles.css?v=3.0" />
 </head>
 <body>
 
@@ -30,31 +30,32 @@
 ========================================================= -->
 <header class="header" role="banner">
   <div class="header-left">
-    <div class="logo">
+    <div class="logo" id="header-logo" style="cursor: pointer;">
       <span class="logo-icon">⬡</span>
       <span class="logo-text">GenWealth<span class="logo-accent">AI</span></span>
-    </div>
-    <div class="header-status" id="header-status">
-      <span class="status-dot" id="status-dot"></span>
-      <span id="status-label">Connecting…</span>
     </div>
   </div>
 
   <nav class="tab-nav" role="navigation" aria-label="Main Navigation">
-    <button class="tab-btn active" id="tab-research"    data-tab="research"   aria-selected="true">
+    <button class="tab-btn active" id="tab-home"        data-tab="home"       aria-selected="true">
+      <span class="tab-icon">🏠</span> Home
+    </button>
+    <button class="tab-btn"        id="tab-research"    data-tab="research"   aria-selected="false">
       <span class="tab-icon">📈</span> Stock Research
     </button>
     <button class="tab-btn"        id="tab-portfolio"   data-tab="portfolio"  aria-selected="false">
       <span class="tab-icon">🤖</span> AI Portfolio
     </button>
     <button class="tab-btn"        id="tab-simulation"  data-tab="simulation" aria-selected="false">
-      <span class="tab-icon">🔬</span> Paper Trading
+      <span class="tab-icon">🧪</span> Paper Trading
+    </button>
+    <button class="tab-btn"        id="tab-about"       data-tab="about"      aria-selected="false">
+      <span class="tab-icon">ℹ️</span> About
     </button>
   </nav>
 
   <div class="header-right">
     <button class="icon-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme">☀</button>
-    <div class="uptime-badge" id="uptime-badge" title="Server uptime">--</div>
   </div>
 </header>
 
@@ -64,9 +65,117 @@
 <main class="main" role="main">
 
   <!-- ─────────────────────────────────────────────────────
+       TAB 0: HOME LANDING PAGE & WORKSHOP HUB
+  ───────────────────────────────────────────────────── -->
+  <section class="tab-panel active" id="panel-home" aria-label="Home">
+    <!-- Hero Canvas Area with Custom Stock Visualizations -->
+    <div class="hero-wrapper glass-card">
+      <canvas id="hero-stock-canvas" class="hero-stock-canvas"></canvas>
+      <div class="hero-glow-orb orb-cyan"></div>
+      <div class="hero-glow-orb orb-purple"></div>
+
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="badge-pulse"></span>
+          <span class="hero-badge-text">Next-Gen Autonomous Trading Intelligence</span>
+        </div>
+
+        <h1 class="hero-title">
+          GenWealth <span class="gradient-text">AI</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Institutional-grade quantitative intelligence bridging deep LSTM sequence models, Random Forest ensembles, FinBERT market sentiment, and PPO Reinforcement Learning.
+        </p>
+
+        <div class="hero-cta-group">
+          <button type="button" class="btn-primary hero-btn-main" id="btn-launch-workshop">
+            <span>⚡ Enter Trading Workshop</span>
+            <span class="btn-arrow">→</span>
+          </button>
+          <button type="button" class="btn-secondary hero-btn-about" id="btn-hero-about">
+            <span>ℹ️ Architecture & Deep Dive</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workshop Modules Section -->
+    <div class="workshop-hub-section">
+      <div class="section-heading">
+        <div class="heading-badge">INSTITUTIONAL TOOLING</div>
+        <h2 class="section-title">Trading Workshop & Modules</h2>
+        <p class="section-desc">Select an operational tool to perform deep financial intelligence, risk-parity allocation, or walk-forward simulations.</p>
+      </div>
+
+      <div class="workshop-cards-grid">
+        <!-- Module 1: Stock Research -->
+        <div class="workshop-tool-card glass-card" id="card-launch-research" data-launch="research">
+          <div class="tool-card-icon-box cyan-glow">📈</div>
+          <div class="tool-card-body">
+            <span class="tool-tag">Phase 1 + Phase 2</span>
+            <h3 class="tool-card-title">Stock Research & Signals</h3>
+            <p class="tool-card-desc">
+              Interactive TradingView candlestick charts, LSTM price momentum forecasting, FinBERT news sentiment extraction, and Groq/Gemini executive synthesis.
+            </p>
+          </div>
+          <div class="tool-card-footer">
+            <div class="tool-badges">
+              <span class="tool-feature-badge">Candlesticks</span>
+              <span class="tool-feature-badge">FinBERT</span>
+              <span class="tool-feature-badge">Live Signals</span>
+            </div>
+            <button type="button" class="tool-launch-btn">Open Tool →</button>
+          </div>
+        </div>
+
+        <!-- Module 2: AI Portfolio -->
+        <div class="workshop-tool-card glass-card" id="card-launch-portfolio" data-launch="portfolio">
+          <div class="tool-card-icon-box purple-glow">🤖</div>
+          <div class="tool-card-body">
+            <span class="tool-tag">Phase 3 Optimization</span>
+            <h3 class="tool-card-title">AI Portfolio Allocator</h3>
+            <p class="tool-card-desc">
+              Multi-ticker risk-parity allocation scaled by multi-agent conviction and Proximal Policy Optimization (PPO) reinforcement learning actor weights.
+            </p>
+          </div>
+          <div class="tool-card-footer">
+            <div class="tool-badges">
+              <span class="tool-feature-badge">Inverse-Vol</span>
+              <span class="tool-feature-badge">PPO Policy</span>
+              <span class="tool-feature-badge">Risk Caps</span>
+            </div>
+            <button type="button" class="tool-launch-btn">Open Tool →</button>
+          </div>
+        </div>
+
+        <!-- Module 3: Paper Trading -->
+        <div class="workshop-tool-card glass-card" id="card-launch-simulation" data-launch="simulation">
+          <div class="tool-card-icon-box green-glow">🧪</div>
+          <div class="tool-card-body">
+            <span class="tool-tag">Execution Engine</span>
+            <h3 class="tool-card-title">Paper Trading Simulation</h3>
+            <p class="tool-card-desc">
+              Zero-lookahead walk-forward simulation across 30-day dynamic horizons or flexible custom date ranges with real slippage, liquidity limits, and dedicated equity curves.
+            </p>
+          </div>
+          <div class="tool-card-footer">
+            <div class="tool-badges">
+              <span class="tool-feature-badge">Custom Dates</span>
+              <span class="tool-feature-badge">Zero-Lookahead</span>
+              <span class="tool-feature-badge">Equity Curve</span>
+            </div>
+            <button type="button" class="tool-launch-btn">Open Tool →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────
        TAB 1: STOCK RESEARCH & ADVISORY HUB
   ───────────────────────────────────────────────────── -->
-  <section class="tab-panel active" id="panel-research" aria-label="Stock Research">
+  <section class="tab-panel hidden" id="panel-research" aria-label="Stock Research">
 
     <!-- Ticker Search Row -->
     <div class="search-row">
@@ -487,6 +596,134 @@
     </div>
   </section>
 
+  <!-- ─────────────────────────────────────────────────────
+       TAB 4: ABOUT & ARCHITECTURE DEEP DIVE
+  ───────────────────────────────────────────────────── -->
+  <section class="tab-panel hidden" id="panel-about" aria-label="About">
+    <div class="about-container">
+
+      <!-- Creator Profile Card -->
+      <div class="creator-card glass-card">
+        <div class="creator-top-row">
+          <div class="creator-avatar-wrap">
+            <div class="creator-avatar-glow"></div>
+            <div class="creator-avatar">TB</div>
+          </div>
+          <div class="creator-details">
+            <div class="creator-role-tag">Creator & Lead Architect</div>
+            <h1 class="creator-name">Taher Batterywala</h1>
+            <p class="creator-bio">
+              Engineered and designed GenWealth AI — an institutional quantitative intelligence framework integrating deep sequence modeling, transformer-based financial NLP, and reinforcement learning portfolio execution.
+            </p>
+            <div class="creator-links">
+              <a href="https://github.com/TaherBatterywala" target="_blank" rel="noopener noreferrer" class="creator-github-link" id="github-profile-link">
+                <svg class="github-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                <span>github.com/TaherBatterywala</span>
+                <span class="external-arrow">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="creator-skills-row">
+          <span class="creator-skill">PyTorch</span>
+          <span class="creator-skill">Deep LSTM Sequences</span>
+          <span class="creator-skill">Random Forest Ensembles</span>
+          <span class="creator-skill">FinBERT Sentiment</span>
+          <span class="creator-skill">PPO Reinforcement Learning</span>
+          <span class="creator-skill">FastAPI Async SSE</span>
+          <span class="creator-skill">Algorithmic Risk Parity</span>
+          <span class="creator-skill">Vanilla ES6 / Cyber-Glass CSS</span>
+        </div>
+      </div>
+
+      <!-- Deep Dive Architectural Overview -->
+      <div class="about-heading-block">
+        <div class="heading-badge">SYSTEM ARCHITECTURE</div>
+        <h2 class="about-section-title">Project Deep Dive: The 4-Phase Intelligence Pipeline</h2>
+        <p class="about-section-desc">GenWealth AI operates across a modular four-phase quantitative pipeline transforming raw tick bars and global news into calibrated allocation orders.</p>
+      </div>
+
+      <div class="arch-cards-grid">
+        <!-- Phase 1 -->
+        <div class="arch-card glass-card">
+          <div class="arch-card-top">
+            <span class="arch-pill cyan">Phase 01</span>
+            <span class="arch-tech">PyTorch / Scikit-Learn</span>
+          </div>
+          <h3 class="arch-card-heading">Quantitative Signal Generation</h3>
+          <p class="arch-card-text">
+            Ingests real-time OHLCV bars across global exchanges (US, NSE, BSE, LSE, TSE, HKEX) and derives multi-scale momentum features (RSI, MACD, Bollinger Bands, ATR, Rolling Volatility). Runs two parallel models:
+          </p>
+          <ul class="arch-spec-list">
+            <li><strong>LSTM Network:</strong> Captures non-linear temporal momentum patterns across sequence lookback windows.</li>
+            <li><strong>Random Forest:</strong> 100-tree ensemble trained on statistical indicators to produce orthogonal probability signals.</li>
+          </ul>
+        </div>
+
+        <!-- Phase 2 -->
+        <div class="arch-card glass-card">
+          <div class="arch-card-top">
+            <span class="arch-pill purple">Phase 02</span>
+            <span class="arch-tech">HuggingFace / Groq / Gemini</span>
+          </div>
+          <h3 class="arch-card-heading">Financial NLP & RAG Intelligence</h3>
+          <p class="arch-card-text">
+            Scrapes and analyzes live news articles for target equities. Runs sentiment classification through HuggingFace ProsusAI/FinBERT, generating positive, negative, and neutral confidence vectors.
+          </p>
+          <ul class="arch-spec-list">
+            <li><strong>RAG Vector Embeddings:</strong> Retrieves historical earnings and filings grounded in MongoDB.</li>
+            <li><strong>Executive Multi-Agent:</strong> Groq Llama-3.3 70B & Gemini 2.5 Flash synthesize quantitative metrics with narrative market catalysts.</li>
+          </ul>
+        </div>
+
+        <!-- Phase 3 -->
+        <div class="arch-card glass-card">
+          <div class="arch-card-top">
+            <span class="arch-pill green">Phase 03</span>
+            <span class="arch-tech">PPO / Modern Portfolio Theory</span>
+          </div>
+          <h3 class="arch-card-heading">Risk-Parity & PPO Allocation</h3>
+          <p class="arch-card-text">
+            Transforms multi-asset alpha into risk-budgeted weights using inverse-volatility sizing adjusted by model conviction. Injects a Proximal Policy Optimization (PPO) reinforcement learning policy actor:
+          </p>
+          <ul class="arch-spec-list">
+            <li><strong>Dynamic Volatility Buffer:</strong> Automatically trims high-beta equities during turbulent regimes.</li>
+            <li><strong>Cap Rules:</strong> Enforces single-asset exposure caps (35%) and minimum liquidity thresholds.</li>
+          </ul>
+        </div>
+
+        <!-- Phase 4 -->
+        <div class="arch-card glass-card">
+          <div class="arch-card-top">
+            <span class="arch-pill amber">Phase 04</span>
+            <span class="arch-tech">FastAPI / Zero-Lookahead Sim</span>
+          </div>
+          <h3 class="arch-card-heading">Paper Trading & Real-Time Client</h3>
+          <p class="arch-card-text">
+            Validates alpha strategies without lookahead bias. Simulates trade execution bar-by-bar across 30-day dynamic cycles or custom date ranges with real slippage and commission calculations.
+          </p>
+          <ul class="arch-spec-list">
+            <li><strong>Full-Stack Single-Port:</strong> FastAPI async server streaming SSE advisory directly to Vanilla ES6 SPA.</li>
+            <li><strong>Dedicated Graphs:</strong> Isolated, color-coded equity curves with formatted calendar milestone dates.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Workshop CTA Banner -->
+      <div class="about-workshop-cta glass-card">
+        <div class="about-cta-content">
+          <h3 class="about-cta-title">Ready to explore the trading terminal?</h3>
+          <p class="about-cta-desc">Launch the interactive workshop to analyze securities, calculate multi-asset portfolios, and backtest custom date regimes.</p>
+        </div>
+        <button type="button" class="btn-primary" id="btn-about-to-workshop">⚡ Launch Trading Workshop</button>
+      </div>
+
+    </div>
+  </section>
+
 </main>
 
 <!-- =========================================================
@@ -640,6 +877,6 @@
   </div>
 </div>
 
-<script src="app.js?v=2.6"></script>
+<script src="app.js?v=2.8"></script>
 </body>
 </html>

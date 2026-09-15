@@ -81,10 +81,245 @@ async function* sseReader(response) {
 }
 
 // ============================================================
+// 0. Hero Stock Canvas Animation (Pure HTML5 Canvas / Math)
+// ============================================================
+const HeroStockAnimation = (() => {
+  let canvas = null;
+  let ctx = null;
+  let animId = null;
+  let isRunning = false;
+  let width = 0;
+  let height = 0;
+  let step = 0;
+
+  // Candlesticks data
+  const candles = [];
+  const numCandles = 22;
+
+  function initCandles() {
+    candles.length = 0;
+    for (let i = 0; i < numCandles; i++) {
+      candles.push({
+        xRatio: i / (numCandles - 1),
+        open: 0.4 + Math.random() * 0.3,
+        close: 0.4 + Math.random() * 0.3,
+        width: 10 + Math.random() * 6,
+        pulseSpeed: 0.02 + Math.random() * 0.03,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  function resize() {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    if (width === 0 || height === 0) return;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+  }
+
+  function draw() {
+    if (!isRunning || !ctx) return;
+    step += 0.015;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // 1. Subtle Financial Grid Lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    const gridRows = 6;
+    for (let r = 1; r < gridRows; r++) {
+      const y = (height / gridRows) * r;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    const gridCols = 10;
+    for (let c = 1; c < gridCols; c++) {
+      const x = (width / gridCols) * c;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+
+    // 2. Render Floating Glowing Candlesticks
+    candles.forEach((c) => {
+      const cx = c.xRatio * width;
+      const wave = Math.sin(step * 1.5 + c.phase) * 12;
+      const baseH = height * 0.68 + wave;
+      
+      const openY = baseH + (c.open - 0.5) * 60;
+      const closeY = baseH + (c.close - 0.5) * 60;
+      const highY = Math.min(openY, closeY) - 14 - Math.sin(step * 2 + c.phase) * 5;
+      const lowY = Math.max(openY, closeY) + 14 + Math.cos(step * 2 + c.phase) * 5;
+
+      const isBull = closeY < openY;
+      const candleColor = isBull ? '#00ffa6' : '#ff4d6d';
+
+      // Wick
+      ctx.strokeStyle = candleColor;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(cx, highY);
+      ctx.lineTo(cx, lowY);
+      ctx.stroke();
+
+      // Body
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = candleColor;
+      const topY = Math.min(openY, closeY);
+      const bodyH = Math.max(6, Math.abs(closeY - openY));
+      ctx.fillRect(cx - c.width / 2, topY, c.width, bodyH);
+
+      // Border with neon glow
+      ctx.globalAlpha = 0.6;
+      ctx.strokeRect(cx - c.width / 2, topY, c.width, bodyH);
+    });
+
+    ctx.globalAlpha = 1.0;
+
+    // 3. Multi-Layer Animated Trend Curves (Lower half)
+    // Trend 1: Cyan Bull Wave
+    drawTrendWave({
+      color: '#00f0ff',
+      alpha: 0.75,
+      fillAlpha: 0.08,
+      freq: 0.0035,
+      speed: 1.8,
+      offsetY: height * 0.70,
+      amp: 36,
+      noiseFreq: 0.012,
+      noiseAmp: 16,
+    });
+
+    // Trend 2: Emerald Momentum Wave
+    drawTrendWave({
+      color: '#00ffa6',
+      alpha: 0.6,
+      fillAlpha: 0.04,
+      freq: 0.0042,
+      speed: 1.2,
+      offsetY: height * 0.64,
+      amp: 28,
+      noiseFreq: 0.018,
+      noiseAmp: 12,
+    });
+
+    // Trend 3: Violet Deep Cycle Wave
+    drawTrendWave({
+      color: '#b57edc',
+      alpha: 0.4,
+      fillAlpha: 0.02,
+      freq: 0.0028,
+      speed: 0.8,
+      offsetY: height * 0.76,
+      amp: 42,
+      noiseFreq: 0.008,
+      noiseAmp: 14,
+    });
+
+    animId = requestAnimationFrame(draw);
+  }
+
+  function drawTrendWave(opts) {
+    const points = [];
+    const numPoints = 50;
+    const dx = width / (numPoints - 1);
+
+    for (let i = 0; i < numPoints; i++) {
+      const x = i * dx;
+      const mainWave = Math.sin(x * opts.freq + step * opts.speed) * opts.amp;
+      const noise = Math.cos(x * opts.noiseFreq + step * (opts.speed * 0.6)) * opts.noiseAmp;
+      const y = opts.offsetY + mainWave + noise;
+      points.push({ x, y });
+    }
+
+    // Path
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) / 2;
+      const yc = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    const last = points[points.length - 1];
+    ctx.lineTo(last.x, last.y);
+
+    // Stroke
+    ctx.strokeStyle = opts.color;
+    ctx.globalAlpha = opts.alpha;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Area Fill
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    ctx.fillStyle = opts.color;
+    ctx.globalAlpha = opts.fillAlpha;
+    ctx.fill();
+
+    // Occasional glowing node on peaks
+    ctx.globalAlpha = opts.alpha;
+    for (let i = 5; i < points.length; i += 12) {
+      ctx.beginPath();
+      ctx.arc(points[i].x, points[i].y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(points[i].x, points[i].y, 7, 0, Math.PI * 2);
+      ctx.strokeStyle = opts.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1.0;
+  }
+
+  function start() {
+    if (!canvas) {
+      canvas = el('hero-stock-canvas');
+      if (!canvas) return;
+      ctx = canvas.getContext('2d');
+      initCandles();
+      window.addEventListener('resize', resize);
+    }
+    resize();
+    if (!isRunning) {
+      isRunning = true;
+      animId = requestAnimationFrame(draw);
+    }
+  }
+
+  function stop() {
+    isRunning = false;
+    if (animId) {
+      cancelAnimationFrame(animId);
+      animId = null;
+    }
+  }
+
+  return { start, stop, resize };
+})();
+
+// ============================================================
 // 1. Tab Manager
 // ============================================================
 const TabManager = (() => {
-  const panels = { research: 'panel-research', portfolio: 'panel-portfolio', simulation: 'panel-simulation' };
+  const panels = {
+    home:       'panel-home',
+    research:   'panel-research',
+    portfolio:  'panel-portfolio',
+    simulation: 'panel-simulation',
+    about:      'panel-about',
+  };
 
   function activate(tabId) {
     $$('.tab-btn').forEach(b => {
@@ -97,16 +332,53 @@ const TabManager = (() => {
       if (p) p.classList.toggle('hidden', key !== tabId);
     });
 
+    // Control Hero Stock Canvas Animation
+    if (tabId === 'home') {
+      HeroStockAnimation.start();
+    } else {
+      HeroStockAnimation.stop();
+    }
+
     // Auto-close floating chatbot when switching tabs to prevent screen obstruction
     if (typeof ChatDock !== 'undefined' && ChatDock.close) {
       ChatDock.close();
     }
+
+    // Scroll smoothly to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function init() {
     $$('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => activate(btn.dataset.tab));
     });
+
+    // Header Logo clicks return to Home
+    const logo = el('header-logo');
+    if (logo) logo.addEventListener('click', () => activate('home'));
+
+    // Wire Home CTA buttons
+    const btnLaunch = el('btn-launch-workshop');
+    if (btnLaunch) btnLaunch.addEventListener('click', () => activate('research'));
+
+    const btnHeroAbout = el('btn-hero-about');
+    if (btnHeroAbout) btnHeroAbout.addEventListener('click', () => activate('about'));
+
+    // Wire Workshop tool cards
+    $$('.workshop-tool-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const target = card.dataset.launch;
+        if (target) activate(target);
+      });
+    });
+
+    // Wire About page workshop button
+    const btnAboutWorkshop = el('btn-about-to-workshop');
+    if (btnAboutWorkshop) btnAboutWorkshop.addEventListener('click', () => activate('research'));
+
+    // Initial activation
+    activate('home');
+    HeroStockAnimation.start();
 
     // Translucent Glass Theme Cycler: Cyber-Glass -> Aurora Matrix -> Pastel Sky White
     const themes = [
@@ -146,12 +418,12 @@ const StatusPoller = (() => {
       const label = el('status-label');
       const uptimeBadge = el('uptime-badge');
 
-      dot.className = 'status-dot ' + (h.status === 'ok' ? 'ok' : h.status === 'degraded' ? 'degraded' : 'error');
-      label.textContent = `API ${h.status.toUpperCase()} · LSTM ${h.lstm_ok ? '✓' : '✗'} · RF ${h.rf_ok ? '✓' : '✗'} · MongoDB ${h.mongodb}`;
-      uptimeBadge.textContent = `↑ ${Math.floor(h.uptime_s / 60)}m ${Math.floor(h.uptime_s % 60)}s`;
+      if (dot) dot.className = 'status-dot ' + (h.status === 'ok' ? 'ok' : h.status === 'degraded' ? 'degraded' : 'error');
+      if (label) label.textContent = `API ${h.status.toUpperCase()} · LSTM ${h.lstm_ok ? '✓' : '✗'} · RF ${h.rf_ok ? '✓' : '✗'} · MongoDB ${h.mongodb}`;
+      if (uptimeBadge) uptimeBadge.textContent = `↑ ${Math.floor(h.uptime_s / 60)}m ${Math.floor(h.uptime_s % 60)}s`;
     } catch (e) {
-      el('status-dot').className = 'status-dot error';
-      el('status-label').textContent = 'API Offline';
+      if (el('status-dot')) el('status-dot').className = 'status-dot error';
+      if (el('status-label')) el('status-label').textContent = 'API Offline';
     }
   }
 
