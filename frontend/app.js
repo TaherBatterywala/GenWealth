@@ -24,6 +24,11 @@
 // Config
 // ============================================================
 const API_BASE = (() => {
+  if (window.GENWEALTH_API_URL) return window.GENWEALTH_API_URL.replace(/\/+$/, '');
+  try {
+    const saved = localStorage.getItem('genwealth_api_url');
+    if (saved) return saved.replace(/\/+$/, '');
+  } catch (_) {}
   const { protocol, hostname, port } = window.location;
   // If served via FastAPI on any port other than 80/443, use same origin
   return `${protocol}//${hostname}${port ? ':' + port : ''}`;
