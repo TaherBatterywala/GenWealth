@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GenWealth AI — Institutional Trading Intelligence</title>
+  <meta name="description" content="GenWealth AI: Production-grade quantitative trading signals, LSTM+RF portfolio intelligence, and AI-powered financial advisory — all in one premium dashboard." />
+  <meta name="theme-color" content="#0a0f1e" />
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- Lightweight Charts CDN (TradingView) -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+
+  <!-- Marked (Markdown renderer for report output) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css?v=2.6" />
+</head>
+<body>
+
+<!-- =========================================================
+     HEADER / NAV
+========================================================= -->
+<header class="header" role="banner">
+  <div class="header-left">
+    <div class="logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">GenWealth<span class="logo-accent">AI</span></span>
+    </div>
+    <div class="header-status" id="header-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-label">Connecting…</span>
+    </div>
+  </div>
+
+  <nav class="tab-nav" role="navigation" aria-label="Main Navigation">
+    <button class="tab-btn active" id="tab-research"    data-tab="research"   aria-selected="true">
+      <span class="tab-icon">📈</span> Stock Research
+    </button>
+    <button class="tab-btn"        id="tab-portfolio"   data-tab="portfolio"  aria-selected="false">
+      <span class="tab-icon">🤖</span> AI Portfolio
+    </button>
+    <button class="tab-btn"        id="tab-simulation"  data-tab="simulation" aria-selected="false">
+      <span class="tab-icon">🔬</span> Paper Trading
+    </button>
+  </nav>
+
+  <div class="header-right">
+    <button class="icon-btn" id="theme-toggle" title="Toggle Theme" aria-label="Toggle Theme">☀</button>
+    <div class="uptime-badge" id="uptime-badge" title="Server uptime">--</div>
+  </div>
+</header>
+
+<!-- =========================================================
+     MAIN CONTENT
+========================================================= -->
+<main class="main" role="main">
+
+  <!-- ─────────────────────────────────────────────────────
+       TAB 1: STOCK RESEARCH & ADVISORY HUB
+  ───────────────────────────────────────────────────── -->
+  <section class="tab-panel active" id="panel-research" aria-label="Stock Research">
+
+    <!-- Ticker Search Row -->
+    <div class="search-row">
+      <div class="search-box glass-card" role="search">
+        <span class="search-icon">⬡</span>
+        <input
+          type="text"
+          id="ticker-input"
+          class="ticker-input"
+          placeholder="Enter ticker (NVDA, RELIANCE.NS, PAYTM.NS, 7203.T, BABA…)"
+          aria-label="Stock Ticker Symbol"
+          maxlength="20"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="live-engine-group">
+          <label class="live-engine-toggle" title="Toggle between Live On-Demand Neural Inference and Offline Benchmark Cache">
+            <input type="checkbox" id="live-engine-toggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Live Engine <span class="engine-state-badge" id="engine-state-badge">OPEN</span></span>
+          </label>
+          <div class="info-popover-wrapper align-right" id="engine-popover-wrapper">
+            <button type="button" class="info-help-btn" id="engine-info-btn" aria-label="Live Engine Info">ℹ️</button>
+            <div class="info-popover-card engine-popover" role="tooltip">
+              <div class="ipc-header">
+                <span class="ipc-icon">⚡</span>
+                <span class="ipc-title">Live Engine: Open vs Closed</span>
+              </div>
+              <div class="ipc-body">
+                <div class="ipc-mode open">
+                  <div class="ipc-mode-tag open">🟢 OPEN (Live On-Demand Inference)</div>
+                  <p>Fetches real-time market data across global exchanges for <strong>any ticker</strong> (e.g. <code>PAYTM.NS</code>, <code>7203.T</code>, <code>NVDA</code>, <code>BABA</code>). Computes 23 indicators on the fly, runs PyTorch LSTM & RF, and scrapes live web news + RAG embeddings.</p>
+                </div>
+                <div class="ipc-mode closed">
+                  <div class="ipc-mode-tag closed">⚪ CLOSED (Offline Snapshot Mode)</div>
+                  <p>Operates against pre-computed static historical baseline CSVs (e.g. <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, <code>NVDA</code>). Zero external scraping or neural re-computation.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-primary" id="analyze-btn" aria-label="Analyze Ticker">
+          <span id="analyze-btn-text">Analyze</span>
+          <span class="btn-loader hidden" id="analyze-loader">⟳</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Research Grid -->
+    <div class="research-grid">
+
+      <!-- Price Chart -->
+      <div class="glass-card chart-card" id="price-chart-card">
+        <div class="card-header chart-card-header">
+          <div class="card-title-group">
+            <span class="card-title" id="chart-ticker-label">—</span>
+            <span class="card-subtitle" id="chart-price-label"></span>
+          </div>
+          <div class="chart-controls">
+            <!-- Chart Type Segmented Control -->
+            <div class="chart-segmented-control" id="chart-type-control">
+              <button class="chart-btn active" data-type="candlestick" id="btn-chart-candle" title="Candlestick Chart">🕯️ Candles</button>
+              <button class="chart-btn" data-type="line" id="btn-chart-line" title="Line Chart">📈 Line</button>
+            </div>
+            <!-- Lookback Period Pills (30D default) -->
+            <div class="period-selector" id="period-selector" title="Select Lookback Period">
+              <button class="period-btn" data-period="7d">7D</button>
+              <button class="period-btn active" data-period="30d">30D</button>
+              <button class="period-btn" data-period="90d">90D</button>
+              <button class="period-btn" data-period="1y">1Y</button>
+            </div>
+            <span class="currency-badge" id="currency-badge">USD</span>
+            <span class="exchange-badge" id="exchange-badge">US Markets</span>
+          </div>
+        </div>
+        <div id="price-chart-container" style="height:280px; position:relative;">
+          <div class="chart-placeholder" id="chart-placeholder">
+            <span>Enter a ticker above to load the live candlestick price chart</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signal Gauge -->
+      <div class="glass-card gauge-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-title">Phase 1 Signal</span>
+            <div class="info-popover-wrapper" id="phase1-popover-wrapper">
+              <button type="button" class="info-help-btn" id="phase1-info-btn" aria-label="Phase 1 Signal Info">ℹ️</button>
+              <div class="info-popover-card phase1-popover" role="tooltip">
+                <div class="ipc-header">
+                  <span class="ipc-icon">🧠</span>
+                  <span class="ipc-title">Phase 1 Signal Architecture</span>
+                </div>
+                <div class="ipc-formula">
+                  <code>Signal = (0.45 × LSTM) + (0.45 × RF) + (0.10 × Sentiment)</code>
+                </div>
+                <div class="ipc-pillars">
+                  <div class="ipc-pillar">
+                    <span class="p-icon">🧠</span>
+                    <div><strong>PyTorch LSTM (45%)</strong>: 60-day sequence momentum model over 23 quantitative indicators.</div>
+                  </div>
+                  <div class="ipc-pillar">
+                    <span class="p-icon">🌲</span>
+                    <div><strong>Random Forest (45%)</strong>: 100-tree ensemble classifying non-linear multi-factor interactions.</div>
+                  </div>
+                  <div class="ipc-pillar">
+                    <span class="p-icon">📰</span>
+                    <div><strong>FinBERT NLP (10%)</strong>: Real-time global financial news sentiment polarity normalized to [0, 1].</div>
+                  </div>
+                </div>
+                <div class="ipc-thresholds">
+                  <span class="th-bullish">BULLISH &gt; 0.65</span>
+                  <span class="th-neutral">HOLD 0.35–0.65</span>
+                  <span class="th-bearish">BEARISH &lt; 0.35</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <span class="inference-badge" id="inference-badge">—</span>
+        </div>
+        <div class="gauge-container">
+          <canvas id="signal-gauge-canvas" width="240" height="140" aria-label="Signal Gauge" role="img"></canvas>
+          <div class="gauge-center-label">
+            <div class="gauge-value" id="gauge-value">—</div>
+            <div class="gauge-label" id="gauge-label">—</div>
+          </div>
+        </div>
+        <div class="signal-metrics-row">
+          <div class="metric-chip">
+            <span class="metric-name">RF</span>
+            <span class="metric-val" id="rf-prob">—</span>
+          </div>
+          <div class="metric-chip">
+            <span class="metric-name">LSTM</span>
+            <span class="metric-val" id="lstm-prob">—</span>
+          </div>
+          <div class="metric-chip">
+            <span class="metric-name">Sent</span>
+            <span class="metric-val" id="sent-val">—</span>
+          </div>
+          <div class="metric-chip">
+            <span class="metric-name">Vol Ratio</span>
+            <span class="metric-val" id="vol-ratio">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Stats -->
+      <div class="glass-card stats-card">
+        <div class="card-header">
+          <span class="card-title">Quant Features</span>
+          <span class="card-subtitle" id="as-of-date">—</span>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-row"><span class="stat-name">Close Price</span>   <span class="stat-val" id="s-close">—</span></div>
+          <div class="stat-row"><span class="stat-name">Log Return</span>    <span class="stat-val" id="s-logret">—</span></div>
+          <div class="stat-row"><span class="stat-name">Vol 20d</span>       <span class="stat-val" id="s-vol20">—</span></div>
+          <div class="stat-row"><span class="stat-name">Ret 1M</span>        <span class="stat-val" id="s-ret1m">—</span></div>
+          <div class="stat-row"><span class="stat-name">Efficiency</span>    <span class="stat-val" id="s-eff">—</span></div>
+          <div class="stat-row"><span class="stat-name">Vol Shock</span>     <span class="stat-val" id="s-shock">—</span></div>
+        </div>
+      </div>
+
+      <!-- Advisory Report (SSE Stream) -->
+      <div class="glass-card report-card" id="report-card">
+        <div class="card-header">
+          <span class="card-title">AI Advisory Report</span>
+          <div class="report-controls">
+            <span class="stream-status" id="stream-status"></span>
+            <span class="latency-badge" id="latency-badge" title="Inference latency"></span>
+          </div>
+        </div>
+
+        <!-- Stage Progress Tracker -->
+        <div class="stage-tracker" id="stage-tracker">
+          <div class="stage-step" id="stage-phase1"><span class="stage-icon">●</span> Phase 1 Signal</div>
+          <div class="stage-step" id="stage-phase2"><span class="stage-icon">●</span> Phase 2 Portfolio</div>
+          <div class="stage-step" id="stage-rag">   <span class="stage-icon">●</span> RAG Context</div>
+          <div class="stage-step" id="stage-report"><span class="stage-icon">●</span> LLM Report</div>
+        </div>
+
+        <div class="report-body" id="report-body">
+          <div class="report-placeholder" id="report-placeholder">
+            Awaiting analysis… Enter a ticker and click <strong>Analyze</strong>.
+          </div>
+          <div id="report-content" class="report-content hidden"></div>
+        </div>
+
+        <!-- Compliance block -->
+        <div class="compliance-block hidden" id="compliance-block">
+          <span class="compliance-icon">⚖</span>
+          <span id="compliance-text"></span>
+        </div>
+
+        <!-- RAG Documents -->
+        <div class="rag-section hidden" id="rag-section">
+          <div class="rag-header">📰 Knowledge Base Sources</div>
+          <div class="rag-docs" id="rag-docs"></div>
+        </div>
+      </div>
+
+    </div><!-- /research-grid -->
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────
+       TAB 2: AI PORTFOLIO ALLOCATOR
+  ───────────────────────────────────────────────────── -->
+  <section class="tab-panel hidden" id="panel-portfolio" aria-label="AI Portfolio Allocator">
+
+    <div class="portfolio-grid">
+
+      <!-- Input Panel -->
+      <div class="glass-card portfolio-input-card">
+        <div class="card-header">
+          <span class="card-title">🤖 AI Portfolio Builder</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="portfolio-tickers">Tickers (comma-separated)</label>
+          <input type="text" id="portfolio-tickers" class="form-input"
+            placeholder="NVDA, AAPL, MSFT, RELIANCE.NS" value="NVDA, AAPL, MSFT" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="portfolio-capital">Capital Amount</label>
+          <input type="number" id="portfolio-capital" class="form-input"
+            placeholder="100000" value="100000" min="1000" step="1000" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="portfolio-currency">Currency</label>
+          <select id="portfolio-currency" class="form-input form-select">
+            <option value="USD">USD — US Dollar</option>
+            <option value="INR">INR — Indian Rupee</option>
+            <option value="EUR">EUR — Euro</option>
+            <option value="GBP">GBP — British Pound</option>
+          </select>
+        </div>
+        <button class="btn-primary btn-full" id="allocate-btn" aria-label="Compute Allocation">
+          <span id="allocate-btn-text">Compute Allocation</span>
+          <span class="btn-loader hidden" id="allocate-loader">⟳</span>
+        </button>
+
+        <!-- PPO Metrics Panel -->
+        <div class="ppo-metrics hidden" id="ppo-metrics">
+          <div class="ppo-header">Phase 2 PPO Backtest Benchmark</div>
+          <div class="stats-grid">
+            <div class="stat-row"><span class="stat-name">Strategy</span>     <span class="stat-val" id="ppo-strategy">—</span></div>
+            <div class="stat-row"><span class="stat-name">Total Return</span> <span class="stat-val" id="ppo-return">—</span></div>
+            <div class="stat-row"><span class="stat-name">Sharpe Ratio</span> <span class="stat-val" id="ppo-sharpe">—</span></div>
+            <div class="stat-row"><span class="stat-name">Max Drawdown</span> <span class="stat-val" id="ppo-drawdown">—</span></div>
+            <div class="stat-row"><span class="stat-name">Method</span>       <span class="stat-val" id="ppo-method">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Allocation Pie Chart -->
+      <div class="glass-card allocation-chart-card">
+        <div class="card-header">
+          <span class="card-title">Allocation Distribution</span>
+          <span class="card-subtitle" id="alloc-method-badge"></span>
+        </div>
+        <div class="chart-wrapper" style="max-height:280px; display:flex; justify-content:center;">
+          <canvas id="allocation-pie-canvas" aria-label="Portfolio Allocation Pie Chart" role="img"></canvas>
+        </div>
+        <div id="alloc-chart-placeholder" class="chart-placeholder">
+          Run allocation to see portfolio distribution
+        </div>
+      </div>
+
+      <!-- Allocation Table -->
+      <div class="glass-card allocation-table-card">
+        <div class="card-header">
+          <span class="card-title">Weight Breakdown</span>
+          <span class="card-subtitle" id="alloc-capital-summary"></span>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="allocation-table" aria-label="Allocation Table">
+            <thead>
+              <tr>
+                <th>Ticker</th><th>Signal</th><th>Stance</th>
+                <th>Weight</th><th>Capital</th>
+              </tr>
+            </thead>
+            <tbody id="allocation-tbody">
+              <tr><td colspan="5" class="table-empty">No allocation computed yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────
+       TAB 3: PAPER TRADING & BACKTEST SANDBOX
+  ───────────────────────────────────────────────────── -->
+  <section class="tab-panel hidden" id="panel-simulation" aria-label="Paper Trading">
+
+    <div class="sim-grid">
+
+      <!-- Sim Config -->
+      <div class="glass-card sim-config-card">
+        <div class="card-header">
+          <span class="card-title">🔬 Simulation Config</span>
+        </div>
+
+        <!-- Sim Type Toggle -->
+        <div class="sim-type-toggle">
+          <button type="button" class="sim-type-btn active" id="sim-type-dynamic"  data-simtype="dynamic">
+            30-Day Dynamic
+          </button>
+          <button type="button" class="sim-type-btn"        id="sim-type-custom"   data-simtype="custom">
+            Custom Date Range
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sim-tickers">Tickers</label>
+          <input type="text" id="sim-tickers" class="form-input"
+            placeholder="NVDA, AAPL" value="NVDA, AAPL" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="sim-capital">Capital</label>
+          <input type="number" id="sim-capital" class="form-input"
+            placeholder="100000" value="100000" min="1000" step="1000" />
+        </div>
+
+        <!-- Custom Date Range Picker (shown when Custom Date Range is selected) -->
+        <div class="custom-dates-box hidden" id="custom-dates-box">
+          <div class="date-inputs-row">
+            <div class="form-group flex-1">
+              <label class="form-label" for="custom-start">Start Date</label>
+              <input type="date" id="custom-start" class="form-input" aria-label="Simulation Start Date" />
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label" for="custom-end">End Date</label>
+              <input type="date" id="custom-end" class="form-input" aria-label="Simulation End Date" />
+            </div>
+          </div>
+          
+          <!-- Quick Lookback Preset Pills -->
+          <div class="date-preset-pills" id="date-preset-pills">
+            <span class="preset-label">Presets:</span>
+            <button type="button" class="preset-pill" id="preset-custom" data-days="custom">Custom</button>
+            <button type="button" class="preset-pill" data-days="15">15D</button>
+            <button type="button" class="preset-pill active" data-days="30">30D</button>
+            <button type="button" class="preset-pill" data-days="60">60D</button>
+            <button type="button" class="preset-pill" data-days="90">90D</button>
+            <button type="button" class="preset-pill" data-days="180">6M</button>
+            <button type="button" class="preset-pill" data-days="365">1Y</button>
+          </div>
+
+          <div class="date-range-badge-row">
+            <span class="range-info-badge" id="range-days-count">🗓️ 30 Calendar Days (~21 Trading Days)</span>
+          </div>
+        </div>
+
+        <button class="btn-primary btn-full" id="run-sim-btn" aria-label="Run Simulation">
+          <span id="sim-btn-text">Run Simulation</span>
+          <span class="btn-loader hidden" id="sim-loader">⟳</span>
+        </button>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid hidden" id="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Total ROI</div>
+            <div class="kpi-value" id="kpi-roi">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Win Rate</div>
+            <div class="kpi-value" id="kpi-winrate">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Max Drawdown</div>
+            <div class="kpi-value danger" id="kpi-drawdown">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Trades</div>
+            <div class="kpi-value" id="kpi-trades">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equity Curve Chart -->
+      <div class="glass-card equity-chart-card">
+        <div class="card-header">
+          <span class="card-title">Portfolio Equity Curve</span>
+          <span class="card-subtitle" id="equity-caption"></span>
+        </div>
+        <div style="position:relative; height:280px;">
+          <canvas id="equity-curve-canvas" aria-label="Equity Curve Chart" role="img"></canvas>
+          <div class="chart-placeholder" id="equity-placeholder">
+            Run a simulation to see the equity curve
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade Ledger -->
+      <div class="glass-card ledger-card">
+        <div class="card-header">
+          <span class="card-title">Trade Ledger</span>
+          <span class="card-subtitle" id="ledger-summary"></span>
+        </div>
+        <div class="table-container ledger-table-container">
+          <table class="data-table" id="ledger-table" aria-label="Trade Ledger">
+            <thead>
+              <tr>
+                <th>Step</th><th>Date</th><th>Ticker</th>
+                <th>Action</th><th>Price</th><th>PnL</th><th>Signal</th>
+              </tr>
+            </thead>
+            <tbody id="ledger-tbody">
+              <tr><td colspan="7" class="table-empty">No simulation run yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- =========================================================
+     FLOATING CHAT DOCK (SPACIOUS CYBER-GLASS WORKSTATION)
+========================================================= -->
+<div class="chat-fab" id="chat-fab" role="button" aria-label="Open AI Chat" title="Open GenWealth AI Chat Assistant">
+  <span class="chat-fab-icon">💬</span>
+  <span class="chat-fab-label">AI Advisor Chat</span>
+  <span class="chat-fab-dot" id="chat-dot"></span>
+</div>
+
+<aside class="chat-dock hidden" id="chat-dock" role="complementary" aria-label="AI Chatbot">
+  <div class="chat-dock-header">
+    <div class="chat-dock-title">
+      <span class="chat-logo">⬡</span>
+      <span>GenWealth AI Assistant</span>
+      <span class="chat-status-pill">Active Quant Grounding</span>
+    </div>
+    <div class="chat-dock-actions">
+      <button class="chat-action-btn" id="chat-expand-btn" title="Expand / Contract Chat Workstation" aria-label="Toggle Expand">⤢</button>
+      <button class="chat-action-btn" id="chat-close-btn" title="Close Chat" aria-label="Close Chat">✕</button>
+    </div>
+  </div>
+
+  <div class="chat-messages" id="chat-messages" aria-live="polite" aria-label="Chat Messages">
+    <div class="chat-msg assistant">
+      <div class="msg-bubble">
+        👋 Hi! I'm your GenWealth AI financial advisor. Ask me anything — I'm grounded in real-time signals, quantitative technicals, and your live knowledge base.
+        <br /><br />Try asking:
+        <ul style="margin: 6px 0 0 16px; font-size: 0.82rem; opacity: 0.9;">
+          <li><em>"What is Phase 1 signal and how is it calculated?"</em></li>
+          <li><em>"What is the difference between Live Engine open and close?"</em></li>
+          <li><em>"Give me the technical and valuation outlook for PAYTM.NS"</em></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-row">
+    <input
+      type="text"
+      id="chat-input"
+      class="chat-input"
+      placeholder="Ask about any stock, signal, formula, or strategy…"
+      maxlength="2000"
+      aria-label="Chat Message"
+    />
+    <button class="chat-send-btn" id="chat-send-btn" aria-label="Send Message">➤</button>
+  </div>
+
+  <div class="chat-footer">
+    <span>⚖ AI-generated analysis. Not registered investment advice.</span>
+  </div>
+</aside>
+
+<!-- =========================================================
+     CONCEPT EXPLANATION MODAL (PHASE 1 SIGNAL & LIVE ENGINE)
+========================================================= -->
+<div class="modal-backdrop hidden" id="info-modal-backdrop">
+  <div class="glass-card modal-window" id="info-modal-window">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="modal-badge-icon">💡</span>
+        <h2 class="modal-title" id="info-modal-title">Quantitative Engine Architecture Reference</h2>
+      </div>
+      <button type="button" class="modal-close-btn" id="info-modal-close" onclick="InfoModal.close()" aria-label="Close Reference">✕</button>
+    </div>
+    
+    <div class="modal-tabs">
+      <button type="button" class="modal-tab-btn active" id="modal-tab-phase1" onclick="InfoModal.switchSection('section-phase1')" data-section="section-phase1">Phase 1 Signal Architecture</button>
+      <button type="button" class="modal-tab-btn" id="modal-tab-engine" onclick="InfoModal.switchSection('section-engine')" data-section="section-engine">Live Engine: Open vs Close</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Section 1: Phase 1 Signal -->
+      <div class="modal-section active" id="section-phase1">
+        <h3>What is Phase 1 Signal and where does it come from?</h3>
+        <p class="modal-desc">
+          The <strong>Phase 1 Signal</strong> is GenWealth's core mathematical directional probability score (from <code>0.0000</code> to <code>1.0000</code>).
+          It quantifies the statistical likelihood that an equity asset will generate positive forward excess returns. It is derived from a 3-pillar institutional ensemble:
+        </p>
+        
+        <div class="modal-formula-box">
+          <div class="formula-label">Exact Ensemble Formulation:</div>
+          <div class="formula-code">Phase 1 Signal = (0.45 × LSTM_Prob) + (0.45 × RF_Prob) + (0.10 × Sentiment_Score)</div>
+        </div>
+
+        <div class="modal-grid-3">
+          <div class="info-metric-card">
+            <span class="imc-icon">🧠</span>
+            <div class="imc-title">PyTorch LSTM (45% Weight)</div>
+            <p>Processes a 60-day historical window of 23 quantitative indicators (RSI, MACD, Bollinger Bands, ATR, Stochastics, EMAs). Captures non-linear temporal sequence patterns and momentum velocity.</p>
+          </div>
+          <div class="info-metric-card">
+            <span class="imc-icon">🌲</span>
+            <div class="imc-title">Random Forest (45% Weight)</div>
+            <p>100-estimator decision tree ensemble evaluating cross-sectional feature interactions, volume divergence, volatility regimes, and multi-factor valuation metrics to classify directional probability.</p>
+          </div>
+          <div class="info-metric-card">
+            <span class="imc-icon">📰</span>
+            <div class="imc-title">FinBERT NLP (10% Weight)</div>
+            <p>Scrapes real-time global news headlines and financial disclosures, running transformer-based sentiment analysis to convert qualitative sentiment polarity into a normalized score [0, 1].</p>
+          </div>
+        </div>
+
+        <div class="modal-thresholds">
+          <h4>Institutional Decision Thresholds:</h4>
+          <ul>
+            <li><strong class="badge-bullish">BULLISH (&gt; 0.65)</strong>: High conviction upward trend acceleration. Momentum, tree consensus, and news sentiment align positively.</li>
+            <li><strong class="badge-neutral">NEUTRAL / HOLD (0.35 – 0.65)</strong>: Consolidation or conflicting indicators. Suggests maintaining risk hedges or watching for breakout.</li>
+            <li><strong class="badge-bearish">BEARISH (&lt; 0.35)</strong>: Downside momentum, technical deterioration, or adverse news sentiment. Capital preservation advised.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Section 2: Live Engine Open vs Close -->
+      <div class="modal-section hidden" id="section-engine">
+        <h3>What is the difference between Live Engine Open and Close?</h3>
+        <p class="modal-desc">
+          The <strong>Live Engine</strong> toggle gives you control over whether the platform executes live computational inference across global exchanges or relies on pre-computed benchmark cache snapshots:
+        </p>
+
+        <div class="engine-comparison-grid">
+          <div class="engine-card open-card">
+            <div class="ec-header">
+              <span class="ec-tag open">LIVE ENGINE OPEN (ON / GREEN)</span>
+            </div>
+            <h4>Real-Time Global Inference Mode</h4>
+            <ul>
+              <li><strong>Universal Coverage:</strong> Evaluates <em>any</em> international stock ticker dynamically (e.g. <code>PAYTM.NS</code>, <code>7203.T</code>, <code>BABA</code>, <code>SHEL.L</code>, <code>NVDA</code>).</li>
+              <li><strong>Live Market Data:</strong> Fetches adjusted OHLCV bars directly from live exchange feeds.</li>
+              <li><strong>Dynamic Feature Engineering:</strong> Computes all 23 quantitative indicators on the fly and feeds them into the PyTorch LSTM neural network and Scikit-Learn Random Forest in memory.</li>
+              <li><strong>Live News & RAG:</strong> Scrapes current real-time financial news, runs FinBERT NLP sentiment, and populates live vector embeddings.</li>
+            </ul>
+          </div>
+
+          <div class="engine-card closed-card">
+            <div class="ec-header">
+              <span class="ec-tag closed">LIVE ENGINE CLOSED (OFF / GRAY)</span>
+            </div>
+            <h4>Offline Benchmark Snapshot Mode</h4>
+            <ul>
+              <li><strong>Pre-Computed Baseline:</strong> Uses pre-calculated static Phase 1 CSV datasets from training runs (e.g. core benchmark basket: <code>RELIANCE.NS</code>, <code>TCS.NS</code>, <code>HDFCBANK.NS</code>, <code>NVDA</code>).</li>
+              <li><strong>Zero External Scraping:</strong> Does not make live web requests or real-time model re-inferences.</li>
+              <li><strong>Fast Baseline Reproduction:</strong> Ideal for rapid offline regression testing, backtesting verification, and fixed baseline comparisons without API latencies.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=2.6"></script>
+</body>
+</html>

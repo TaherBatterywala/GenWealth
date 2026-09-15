@@ -31,7 +31,10 @@ logger.setLevel(logging.INFO)
 # ---------------------------------------------------------------------------
 # Rule Constants
 # ---------------------------------------------------------------------------
-SIGNAL_BUY_THRESHOLD = 0.55   # Phase1 signal > this to enter
+# NOTE: SIGNAL_BUY_THRESHOLD is now REPLACED by get_dynamic_threshold().
+# The static value is retained only as a last-resort default if signal list
+# is empty (e.g. single-ticker portfolios where quantile is undefined).
+_SIGNAL_BUY_THRESHOLD_DEFAULT = 0.55
 PROFIT_TAKE_ROI      = 0.15   # +15% → TRIM 30%
 TRIM_FRACTION        = 0.30   # Fraction sold on profit-take
 STOP_LOSS_ROI        = -0.08  # -8% → full EXIT
@@ -41,6 +44,66 @@ PRICE_FETCH_PERIOD   = "65d"  # yfinance pull window (~3 months for buffer)
 
 POSITIVE_STANCES = {"BUY", "HOLD"}
 NEGATIVE_STANCES = {"SELL", "REDUCE"}
+
+
+def get_dynamic_threshold(
+    signals:   list[float],
+    vol_ratios: list[float] | None = None,
+    regime:    str = "auto",
+) -> float:
+    """
+    Compute a regime-adaptive signal entry threshold.
+
+    Replaces the static ``SIGNAL_BUY_THRESHOLD = 0.55`` with a quantile-based
+    threshold that responds to the current market regime:
+
+        - **Bull regime** (vol_ratio median < 1.0):
+          40th percentile of the signal distribution.
+          Deploys capital more aggressively when momentum is broad.
+        - **Bear regime** (vol_ratio median ≥ 1.0):
+          65th percentile — tightens the entry filter to preserve capital.
+        - **Auto** (default): classifies regime using vol_ratio median;
+          falls back to 50th percentile if vol_ratio is not supplied.
+
+    Args:
+        signals:    List of Phase 1 composite signals for all tickers.
+        vol_ratios: Optional list of Vol_20/Vol_200 ratios per ticker.
+                    Required for ``regime="auto"`` classification.
+        regime:     ``"auto"`` | ``"bull"`` | ``"bear"``.
+
+    Returns:
+        float: Dynamic entry threshold in the range [0.30, 0.75].
+               Falls back to 0.55 if ``signals`` is empty.
+
+    Example:
+        >>> signals = [0.62, 0.58, 0.71, 0.45, 0.39]
+        >>> get_dynamic_threshold(signals, regime="bull")
+        0.45   # 40th percentile → lower bar → deploy more capital
+        >>> get_dynamic_threshold(signals, regime="bear")
+        0.62   # 65th percentile → higher bar → stay defensive
+    """
+    if not signals:
+        return _SIGNAL_BUY_THRESHOLD_DEFAULT
+
+    sig_arr = np.array(signals, dtype=float)
+
+    # ── Regime classification ─────────────────────────────────────────────────
+    if regime == "auto":
+        if vol_ratios and len(vol_ratios) > 0:
+            vol_median = float(np.median(vol_ratios))
+            regime = "bear" if vol_median >= 1.0 else "bull"
+        else:
+            # No vol data — use 50th percentile as neutral threshold
+            return float(np.clip(np.percentile(sig_arr, 50), 0.30, 0.75))
+
+    if regime == "bull":
+        threshold = float(np.percentile(sig_arr, 40))  # lower bar — deploy more
+    else:  # bear
+        threshold = float(np.percentile(sig_arr, 65))  # higher bar — stay defensive
+
+    threshold = float(np.clip(threshold, 0.30, 0.75))
+    logger.debug("[DynamicThreshold] regime=%s -> threshold=%.4f", regime, threshold)
+    return threshold
 
 
 # ---------------------------------------------------------------------------
@@ -205,13 +268,30 @@ class SmartPortfolioAllocator:
         """
         Returns a dict {ticker: weight} where weights sum to 1.0 for
         eligible tickers and 0.0 for tickers kept in CASH.
+
+        Uses ``get_dynamic_threshold()`` to compute a regime-adaptive entry
+        threshold based on the full cross-sectional signal distribution and
+        vol_ratio readings (40th pct bull / 65th pct bear).
         """
+        # Compute vol ratios for regime detection
+        vol_ratios_list: list[float] = []
+        for t in self.tickers:
+            hist = self.price_hist.get(t)
+            if hist is not None and len(hist) >= 20:
+                vr = rolling_vol_ratio(hist["Close"])
+                vol_ratios_list.append(vr)
+
+        # Dynamic threshold — regime-adaptive (replaces hardcoded 0.55)
+        signal_list = [self.signals.get(t, 0.50) for t in self.tickers]
+        threshold   = get_dynamic_threshold(signal_list, vol_ratios=vol_ratios_list)
+        logger.info("[Allocator] Dynamic entry threshold: %.4f", threshold)
+
         # Filter eligible tickers
         eligible = []
         for t in self.tickers:
             sig    = self.signals.get(t, 0.50)
             stance = self.ai_stances.get(t, "HOLD").upper()
-            if sig > SIGNAL_BUY_THRESHOLD or stance in POSITIVE_STANCES:
+            if sig > threshold or stance in POSITIVE_STANCES:
                 eligible.append(t)
 
         if not eligible:
@@ -548,9 +628,19 @@ class DynamicTradeSimulator:
         # Remove residual from cash if it wasn't properly closed
         total_final_value = self.cash + residual
         total_roi = (total_final_value - self.initial_capital) / self.initial_capital * 100
-        wins = sum(1 for p in self.closed_pnl.values() if p > 0)
-        n_closed = len(self.closed_pnl)
-        win_rate = (wins / n_closed * 100) if n_closed > 0 else 0.0
+        # Trade-level win rate (evaluates all closed trades: profit takes, stop losses, liquidations)
+        closed_trades = [
+            e for e in self.ledger
+            if e.action in ("TRIM_PROFIT", "STOP_LOSS_EXIT", "VOL_EXIT", "CLOSE_ALL")
+            and abs(e.realized_pnl) > 1e-4
+        ]
+        if closed_trades:
+            trade_wins = sum(1 for e in closed_trades if e.realized_pnl > 0)
+            win_rate = (trade_wins / len(closed_trades)) * 100.0
+        else:
+            wins = sum(1 for p in self.closed_pnl.values() if p > 0)
+            n_closed = len(self.closed_pnl)
+            win_rate = (wins / n_closed * 100) if n_closed > 0 else 0.0
 
         return SimulationResult(
             portfolio_name=self.portfolio_name,
@@ -687,7 +777,7 @@ def fetch_regime_data(
             progress=False,
         )
         if hist.empty or len(hist) < 5:
-            logger.warning("[WF] %s: insufficient rows (%d) for %s→%s",
+            logger.warning("[WF] %s: insufficient rows (%d) for %s->%s",
                            ticker, len(hist), regime_start, regime_end)
             return None
         if isinstance(hist.columns, pd.MultiIndex):
@@ -1052,17 +1142,18 @@ class WalkForwardSimulator:
             ))
 
         d1_closes = {t: self._px(walk_hists[t], 0) or 0.0 for t in valid}
-        self._curve.append((1, self._total_value(d1_closes)))
+        d1_date   = self._dt(walk_hists[valid[0]], 0) if valid else "Day 1"
+        self._curve.append((d1_date, self._total_value(d1_closes)))
         max_days = max(
             (len(wh) for wh in walk_hists.values() if wh is not None and not wh.empty),
             default=1,
         )
 
-        # ── Days 2–5: Active management ───────────────────────────────────────
+        # ── Days 2 to max_days: Active management over full custom date regime ─
         today_closes: dict[str, float] = {}
-        for day_idx in range(1, min(5, max_days)):
+        for day_idx in range(1, max_days):
             day_num  = day_idx + 1
-            is_final = (day_num == 5) or (day_idx >= max_days - 1)
+            is_final = (day_idx >= max_days - 1)
 
             today_closes = {}
             today_dates: dict[str, str] = {}
@@ -1218,7 +1309,10 @@ class WalkForwardSimulator:
                             ),
                         ))
 
-            self._curve.append((day_num, self._total_value(today_closes)))
+            date_today = today_dates.get(valid[0], f"Day {day_num}") if valid else f"Day {day_num}"
+            self._curve.append((date_today, self._total_value(today_closes)))
+
+        self.portfolio_curve = self._curve
 
         # ── Final statistics ──────────────────────────────────────────────────
         residual = sum(

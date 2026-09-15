@@ -87,6 +87,79 @@ _VALID_INTENTS: frozenset[str] = frozenset({
 })
 
 # ---------------------------------------------------------------------------
+# Global Currency Precision Map — Task 4.4
+# ---------------------------------------------------------------------------
+# Maps Yahoo Finance ticker exchange suffixes to (currency_code, symbol, exchange_name).
+# The LLM prompt builder injects the correct currency into every advisory to
+# prevent price-scale confusion (e.g. ₹1,800 vs $1,800 for TCS.NS vs a USD stock).
+# ---------------------------------------------------------------------------
+_EXCHANGE_CURRENCY_MAP: dict[str, tuple[str, str, str]] = {
+    # ── India ────────────────────────────────────────────────────────────────
+    ".NS":  ("INR", "₹",    "NSE India"),
+    ".BO":  ("INR", "₹",    "BSE India"),
+    # ── Europe ───────────────────────────────────────────────────────────────
+    ".AS":  ("EUR", "€",    "Euronext Amsterdam"),
+    ".PA":  ("EUR", "€",    "Euronext Paris"),
+    ".DE":  ("EUR", "€",    "XETRA Germany"),
+    ".MI":  ("EUR", "€",    "Borsa Italiana"),
+    ".MC":  ("EUR", "€",    "BME Spain"),
+    ".BR":  ("EUR", "€",    "Euronext Brussels"),
+    ".L":   ("GBP", "£",    "London Stock Exchange"),
+    ".ST":  ("SEK", "kr",   "Nasdaq Stockholm"),
+    ".OL":  ("NOK", "kr",   "Oslo Bors"),
+    ".HE":  ("EUR", "€",    "Nasdaq Helsinki"),
+    ".SW":  ("CHF", "Fr",   "SIX Swiss Exchange"),
+    # ── Asia-Pacific ─────────────────────────────────────────────────────────
+    ".T":   ("JPY", "¥",    "Tokyo Stock Exchange"),
+    ".HK":  ("HKD", "HK$",  "Hong Kong Stock Exchange"),
+    ".AX":  ("AUD", "A$",   "ASX Australia"),
+    ".NZ":  ("NZD", "NZ$",  "NZX New Zealand"),
+    ".SS":  ("CNY", "¥",    "Shanghai Stock Exchange"),
+    ".SZ":  ("CNY", "¥",    "Shenzhen Stock Exchange"),
+    ".KS":  ("KRW", "₩",    "Korea Stock Exchange"),
+    ".SI":  ("SGD", "S$",   "Singapore Exchange"),
+    # ── Americas ─────────────────────────────────────────────────────────────
+    ".TO":  ("CAD", "C$",   "Toronto Stock Exchange"),
+    ".V":   ("CAD", "C$",   "TSX Venture Exchange"),
+    ".MX":  ("MXN", "M$",   "Bolsa Mexicana"),
+    ".SA":  ("BRL", "R$",   "Bovespa Brazil"),
+    # ── Middle East / Africa ─────────────────────────────────────────────────
+    ".TA":  ("ILS", "₪",    "Tel Aviv Stock Exchange"),
+    ".JO":  ("ZAR", "R",    "Johannesburg Stock Exchange"),
+    # ── Crypto (USD-denominated) ─────────────────────────────────────────────
+    "-USD": ("USD", "$",    "Crypto USD"),
+    "-BTC": ("USD", "$",    "Crypto BTC-quoted"),
+    "-ETH": ("USD", "$",    "Crypto ETH-quoted"),
+}
+
+# Default for US markets (no suffix) and any unrecognised exchange
+_DEFAULT_CURRENCY = ("USD", "$", "US Markets")
+
+
+def get_ticker_currency(ticker: str) -> tuple[str, str, str]:
+    """
+    Resolve the currency, symbol, and exchange name for a Yahoo Finance ticker.
+
+    Args:
+        ticker: Yahoo Finance ticker symbol (e.g. "NVDA", "RELIANCE.NS", "ASML.AS").
+
+    Returns:
+        tuple[str, str, str]: (currency_code, currency_symbol, exchange_name)
+            Examples:
+                "RELIANCE.NS" → ("INR", "₹", "NSE India")
+                "ASML.AS"     → ("EUR", "€", "Euronext Amsterdam")
+                "7203.T"      → ("JPY", "¥", "Tokyo Stock Exchange")
+                "NVDA"        → ("USD", "$", "US Markets")
+                "BTC-USD"     → ("USD", "$", "Crypto USD")
+    """
+    tu = ticker.strip().upper()
+    for suffix, data in _EXCHANGE_CURRENCY_MAP.items():
+        # Match exact (e.g. "-USD") or trailing suffix (e.g. ".NS")
+        if tu == suffix or tu.endswith(suffix):
+            return data
+    return _DEFAULT_CURRENCY
+
+# ---------------------------------------------------------------------------
 # Lazy-loaded API client singletons / pools
 # ---------------------------------------------------------------------------
 # Groq key pool — populated once by _load_groq_api_keys().
@@ -445,7 +518,17 @@ def generate_groq_report(prompt_context: str) -> str:
         "   ## 4. Actionable Stance\n"
         "3. Section 4 MUST end with a clear directional label: **BUY**, **HOLD**, **SELL**, or **REDUCE**.\n"
         "4. Write in concise, professional financial English. No filler phrases.\n"
-        "5. Respect currency context: INR = Indian Rupees (NSE/BSE), USD = US dollars. Never conflate.\n"
+        "5. Respect currency context precisely (CRITICAL — do not conflate currencies):\n"
+        "   • .NS / .BO suffix → INR (₹) — Indian Rupee (NSE/BSE)\n"
+        "   • .AS / .PA / .DE / .MI suffix → EUR (€) — Euro\n"
+        "   • .L suffix → GBP (£) — British Pound\n"
+        "   • .T suffix → JPY (¥) — Japanese Yen\n"
+        "   • .HK suffix → HKD (HK$) — Hong Kong Dollar\n"
+        "   • .AX suffix → AUD (A$) — Australian Dollar\n"
+        "   • .TO suffix → CAD (C$) — Canadian Dollar\n"
+        "   • -USD / -BTC / -ETH suffix → USD ($) — Crypto\n"
+        "   • No suffix → USD ($) — US Markets (default)\n"
+        "   Never conflate price scales across currencies.\n"
         "6. Be specific and data-driven: reference actual signal values, returns, and volatility figures.\n"
     )
 
@@ -883,6 +966,13 @@ class LLMAdvisorEngine:
 
     def __init__(self) -> None:
         self._aggregator = ContextAggregator()
+
+    def generate_report(self, ticker: str, prompt_context: str) -> str:
+        """
+        Generate a structured institutional advisory report for a ticker.
+        Delegates to generate_groq_report (with Gemini fallback).
+        """
+        return generate_groq_report(prompt_context)
 
     def run_advisory_pipeline(
         self,

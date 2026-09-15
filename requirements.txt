@@ -31,3 +31,10 @@ ddgs>=9.0                  # DuckDuckGo Search (keyless news)
 numpy>=1.26
 google-generativeai>=0.7   # Gemini LLM client
 groq>=0.9                  # Groq LLM client
+
+# --- Phase 4: Production API & Vanilla JS Frontend ----------
+fastapi>=0.115             # API framework
+uvicorn[standard]>=0.30    # ASGI server
+sse-starlette>=2.0         # Server-Sent Events helper
+aiofiles>=23.0             # Async static file serving (StaticFiles)
+python-multipart>=0.0.9    # Form-data parsing (multipart uploads)

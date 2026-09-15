@@ -47,6 +47,15 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 from src.advisor.vector_store import query_knowledge_base
 
+# Live inference engine (lazy import to avoid circular deps at module load)
+# LiveSignalResult is imported only when needed.
+_live_engine_available: bool = False
+try:
+    from src.advisor.live_inference import LiveQuantEngine, LiveSignalResult, _signal_label
+    _live_engine_available = True
+except Exception:
+    pass  # Live inference not available — CSV-only mode
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -72,6 +81,7 @@ _RL_TICKERS: list[str] = ["HDFCBANK.NS", "NVDA", "RELIANCE.NS", "TCS.NS"]
 # ---------------------------------------------------------------------------
 _phase1_df: Optional[pd.DataFrame] = None
 _phase2_metrics: Optional[dict] = None
+_live_engine_instance: Optional[Any] = None  # LiveQuantEngine singleton
 
 
 # ---------------------------------------------------------------------------
@@ -166,17 +176,24 @@ def _load_phase2_metrics() -> dict:
 # 1. Phase 1 Snapshot
 # ===========================================================================
 
-def get_phase1_snapshot(ticker: str) -> dict[str, Any]:
+def get_phase1_snapshot(
+    ticker: str,
+    live_signal_override: "Optional[Any]" = None,
+) -> dict[str, Any]:
     """
     Extract the most recent Phase 1 feature snapshot for a given ticker.
 
-    Reads the latest row from ``data/enriched_rl_data.csv`` for the requested
-    ticker and returns the key quantitative features used by the LSTM + RF + 
-    FinBERT pipeline.
+    Priority:
+        1. If ``live_signal_override`` is provided (a ``LiveSignalResult``), use it
+           directly — bypasses the CSV entirely. Used for non-CSV tickers.
+        2. Otherwise reads the latest row from ``data/enriched_rl_data.csv``.
 
     Args:
         ticker (str): Ticker symbol exactly as stored in the CSV,
                       e.g. "NVDA", "HDFCBANK.NS", "RELIANCE.NS", "TCS.NS".
+        live_signal_override: Optional ``LiveSignalResult`` dataclass from
+                              ``live_inference.LiveQuantEngine.compute_live_signal()``.
+                              When supplied, skips CSV lookup entirely.
 
     Returns:
         dict: A snapshot dictionary with the following keys:
@@ -190,10 +207,37 @@ def get_phase1_snapshot(ticker: str) -> dict[str, Any]:
             - ``efficiency``     (float): Efficiency ratio (trend quality metric).
             - ``sentiment``      (float): FinBERT composite sentiment score (-1 to 1).
             - ``phase1_signal``  (float): Blended LSTM + RF signal (0 to 1).
+            - ``inference_mode`` (str):   "LIVE_MODEL" | "MOMENTUM_PROXY" | "CSV_CACHE".
 
     Raises:
-        ValueError: If the ticker is not found in the CSV.
+        ValueError: If the ticker is not found in the CSV and no override is given.
     """
+    ticker = ticker.upper()
+
+    # ── Path 1: Live inference override ─────────────────────────────────────
+    if live_signal_override is not None:
+        lr = live_signal_override
+        snapshot = {
+            "ticker":         lr.ticker,
+            "as_of_date":     lr.as_of_date,
+            "close_price":    lr.close_price,
+            "log_ret":        lr.log_ret,
+            "vol_20":         lr.vol_20,
+            "vol_ratio":      lr.vol_ratio,
+            "ret_1m":         lr.ret_1m,
+            "efficiency":     lr.efficiency,
+            "sentiment":      lr.sentiment,
+            "phase1_signal":  lr.phase1_signal,
+            "inference_mode": lr.inference_mode,
+        }
+        logger.info(
+            "Phase 1 snapshot for '%s' via live engine: signal=%.4f, sentiment=%.4f [%s]",
+            ticker, snapshot["phase1_signal"], snapshot["sentiment"],
+            snapshot["inference_mode"],
+        )
+        return snapshot
+
+    # ── Path 2: CSV lookup ────────────────────────────────────────────────────
     df = _load_phase1_df()
     ticker_df = df[df["Ticker"] == ticker].sort_values("Date")
 
@@ -206,20 +250,21 @@ def get_phase1_snapshot(ticker: str) -> dict[str, Any]:
 
     latest = ticker_df.iloc[-1]
     snapshot = {
-        "ticker":        ticker,
-        "as_of_date":    str(latest["Date"].date()),
-        "close_price":   round(float(latest["Close_Price"]), 4),
-        "log_ret":       round(float(latest["Log_Ret"]), 6),
-        "vol_20":        round(float(latest["Vol_20"]), 6),
-        "vol_ratio":     round(float(latest["Vol_Ratio"]), 4),
-        "ret_1m":        round(float(latest["Ret_1M"]), 6),
-        "efficiency":    round(float(latest["Efficiency"]), 4),
-        "sentiment":     round(float(latest["Sentiment"]), 4),
-        "phase1_signal": round(float(latest["Phase1_Signal"]), 4),
+        "ticker":         ticker,
+        "as_of_date":     str(latest["Date"].date()),
+        "close_price":    round(float(latest["Close_Price"]), 4),
+        "log_ret":        round(float(latest["Log_Ret"]), 6),
+        "vol_20":         round(float(latest["Vol_20"]), 6),
+        "vol_ratio":      round(float(latest["Vol_Ratio"]), 4),
+        "ret_1m":         round(float(latest["Ret_1M"]), 6),
+        "efficiency":     round(float(latest["Efficiency"]), 4),
+        "sentiment":      round(float(latest["Sentiment"]), 4),
+        "phase1_signal":  round(float(latest["Phase1_Signal"]), 4),
+        "inference_mode": "CSV_CACHE",
     }
 
     logger.info(
-        "Phase 1 snapshot for '%s' as of %s: signal=%.4f, sentiment=%.4f",
+        "Phase 1 snapshot for '%s' as of %s: signal=%.4f, sentiment=%.4f [CSV]",
         ticker, snapshot["as_of_date"], snapshot["phase1_signal"], snapshot["sentiment"],
     )
     return snapshot
@@ -346,38 +391,59 @@ class ContextAggregator:
         prompt = agg.build_llm_prompt_context("NVDA")
     """
 
-    def build_ticker_context(self, ticker: str) -> dict[str, Any]:
+    def build_ticker_context(
+        self,
+        ticker: str,
+        use_live_engine: bool = True,
+    ) -> dict[str, Any]:
         """
         Aggregate Phase 1 + Phase 2 + Phase 3.1 data for a single ticker.
 
-        Fetches data from all three pipeline stages in parallel-friendly order
-        and returns a single nested dictionary representing the complete
-        market context for the requested ticker.
+        For tickers NOT in the Phase 1 CSV (i.e., outside the 4 trained tickers),
+        the live inference engine (``LiveQuantEngine``) is invoked when
+        ``use_live_engine=True`` to compute a real-time signal.
 
         Args:
-            ticker (str): Stock ticker symbol (e.g. "NVDA", "HDFCBANK.NS").
+            ticker (str):           Stock ticker symbol (e.g. "NVDA", "AAPL", "ASML.AS").
+            use_live_engine (bool): If True, trigger ``LiveQuantEngine`` for non-CSV tickers.
+                                    Defaults to True.
 
         Returns:
             dict: Unified context payload with three top-level keys:
                 - ``phase1_quant``     (dict): Quantitative feature snapshot.
                 - ``phase2_portfolio`` (dict): RL portfolio metrics & allocation.
                 - ``phase3_rag``       (list): RAG news documents.
-
-        Example:
-            >>> agg = ContextAggregator()
-            >>> ctx = agg.build_ticker_context("NVDA")
-            >>> ctx["phase1_quant"]["phase1_signal"]
-            0.7231
         """
         ticker = ticker.upper()
         logger.info("Building unified context for ticker '%s'…", ticker)
 
         # --- Phase 1: Quant snapshot -----------------------------------------
+        # Try CSV first; if the ticker is not found AND live engine is enabled,
+        # compute a real-time signal via LiveQuantEngine.
+        live_signal = None
         try:
-            phase1 = get_phase1_snapshot(ticker)
+            phase1 = get_phase1_snapshot(ticker)   # CSV path
         except (ValueError, FileNotFoundError) as exc:
-            logger.warning("Phase 1 snapshot failed for '%s': %s", ticker, exc)
-            phase1 = {"error": str(exc)}
+            logger.info(
+                "Phase 1 CSV miss for '%s' (%s). Attempting live engine…", ticker, exc
+            )
+            if use_live_engine and _live_engine_available:
+                try:
+                    global _live_engine_instance
+                    if _live_engine_instance is None:
+                        from src.advisor.live_inference import LiveQuantEngine
+                        _live_engine_instance = LiveQuantEngine()
+                    live_signal = _live_engine_instance.compute_live_signal(ticker)
+                    phase1 = get_phase1_snapshot(
+                        ticker, live_signal_override=live_signal
+                    )
+                except Exception as live_exc:
+                    logger.warning(
+                        "Live engine also failed for '%s': %s", ticker, live_exc
+                    )
+                    phase1 = {"error": str(exc)}   # surface the original CSV error
+            else:
+                phase1 = {"error": str(exc)}
 
         # --- Phase 2: RL portfolio state -------------------------------------
         try:
@@ -394,13 +460,17 @@ class ContextAggregator:
             rag_docs = []
 
         context = {
-            "ticker":         ticker,
-            "phase1_quant":   phase1,
+            "ticker":           ticker,
+            "phase1_quant":     phase1,
             "phase2_portfolio": phase2,
-            "phase3_rag":     rag_docs,
+            "phase3_rag":       rag_docs,
+            "live_signal":      live_signal,   # None for CSV-scope tickers
         }
 
-        logger.info("Unified context built for '%s' (%d RAG doc(s)).", ticker, len(rag_docs))
+        logger.info(
+            "Unified context built for '%s' (%d RAG doc(s), live=%s).",
+            ticker, len(rag_docs), live_signal is not None,
+        )
         return context
 
     def build_llm_prompt_context(self, ticker: str) -> str:
